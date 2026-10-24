@@ -1,0 +1,30 @@
+# Dependency
+node_modules/
+
+# Environment (jangan pernah di-commit)
+.env
+.env.*
+!.env.example
+
+# Database lokal SQLite
+*.db
+*.db-shm
+*.db-wal
+data/
+
+# Hasil test, coverage, dan scan
+coverage/
+junit.xml
+.trivy-cache/
+trivy-results.sarif
+latest-app.zip
+
+# Log & file sistem
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/

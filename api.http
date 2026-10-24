@@ -1,0 +1,310 @@
+# Verifikasi Tahap 2 (ekstensi VS Code "REST Client"). Klik "Send Request" di atas tiap blok.
+# Prasyarat: npm run seed, lalu npm start. Jalankan berurutan dari atas ke bawah
+# pada database hasil seed baru (data berubah setelah POST/PUT/DELETE; ulangi `npm run seed` untuk reset).
+
+@base = http://localhost:3000/api
+
+### 1. Health check -> 200
+GET {{base}}/health
+
+### ===================== HOMESTAYS =====================
+
+### 2. Daftar + pagination -> 200, meta.total = 5
+GET {{base}}/homestays?page=1&limit=2
+
+### 3. Pencarian & filter kota -> 200
+GET {{base}}/homestays?search=toba
+###
+GET {{base}}/homestays?city=berastagi
+
+### 4. Detail -> 200
+GET {{base}}/homestays/1
+
+### 5. Kamar milik homestay -> 200 (3 kamar)
+GET {{base}}/homestays/1/rooms
+
+### 6. Tambah homestay -> 201
+# @name createHomestay
+POST {{base}}/homestays
+Content-Type: application/json
+
+{
+  "name": "Homestay Uji Coba",
+  "address": "Jl. Contoh No. 1",
+  "city": "Medan",
+  "phone": "081234567890",
+  "image_url": "https://example.com/foto.jpg"
+}
+
+### 7. Ubah homestay (PUT) -> 200
+PUT {{base}}/homestays/{{createHomestay.response.body.data.id}}
+Content-Type: application/json
+
+{
+  "name": "Homestay Uji Coba (Ubah)",
+  "description": "Deskripsi baru",
+  "address": "Jl. Contoh No. 2",
+  "city": "Medan"
+}
+
+### 8. Hapus homestay tanpa pesanan -> 204
+DELETE {{base}}/homestays/{{createHomestay.response.body.data.id}}
+
+### ---- Kasus gagal homestay ----
+
+### 9. Validasi salah (body kosong) -> 400 + details
+POST {{base}}/homestays
+Content-Type: application/json
+
+{}
+
+### 10. image_url bukan http/https -> 400
+POST {{base}}/homestays
+Content-Type: application/json
+
+{ "name": "Homestay X", "address": "Jl. X", "city": "Medan", "image_url": "javascript:alert(1)" }
+
+### 11. ID tidak ada -> 404
+GET {{base}}/homestays/9999
+
+### 12. ID bukan angka -> 400
+GET {{base}}/homestays/abc
+
+### 13. JSON rusak -> 400
+POST {{base}}/homestays
+Content-Type: application/json
+
+{ "name": "rusak",
+
+### 14. Hapus homestay yang kamarnya punya pesanan -> 409
+DELETE {{base}}/homestays/1
+
+### 15. Rute tidak ada -> 404
+GET {{base}}/tidak-ada
+
+### ===================== ROOMS =====================
+
+### 16. Semua kamar -> 200 (12 kamar); is_active berupa boolean
+GET {{base}}/rooms
+
+### 17. Filter per homestay -> 200
+GET {{base}}/rooms?homestay_id=5
+
+### 18. Detail kamar -> 200
+GET {{base}}/rooms/1
+
+### 19. Tambah kamar -> 201
+# @name createRoom
+POST {{base}}/rooms
+Content-Type: application/json
+
+{
+  "homestay_id": 5,
+  "name": "Kamar Uji Coba",
+  "type": "standard",
+  "capacity": 2,
+  "price_per_night": 175000
+}
+
+### 20. Ubah kamar (PUT, is_active wajib) -> 200
+PUT {{base}}/rooms/{{createRoom.response.body.data.id}}
+Content-Type: application/json
+
+{
+  "homestay_id": 5,
+  "name": "Kamar Uji Coba (Ubah)",
+  "type": "standard",
+  "capacity": 3,
+  "price_per_night": 180000,
+  "is_active": true
+}
+
+### 21. Hapus kamar tanpa pesanan -> 204
+DELETE {{base}}/rooms/{{createRoom.response.body.data.id}}
+
+### ---- Kasus gagal kamar ----
+
+### 22. Kapasitas 0 dan harga negatif -> 400 (dua detail)
+POST {{base}}/rooms
+Content-Type: application/json
+
+{ "homestay_id": 5, "name": "Kamar X", "type": "standard", "capacity": 0, "price_per_night": -1 }
+
+### 23. homestay_id tidak ada -> 404
+POST {{base}}/rooms
+Content-Type: application/json
+
+{ "homestay_id": 999, "name": "Kamar X", "type": "standard", "capacity": 2, "price_per_night": 100000 }
+
+### 24. Hapus kamar yang punya pesanan -> 409
+DELETE {{base}}/rooms/1
+
+### ===================== BOOKINGS =====================
+
+### 25. Daftar pesanan -> 200 (8 pesanan, ada room_name & homestay_name)
+GET {{base}}/bookings
+
+### 26. Filter -> 200
+GET {{base}}/bookings?status=confirmed
+###
+GET {{base}}/bookings?room_id=3
+
+### 27. Detail -> 200
+GET {{base}}/bookings/1
+
+### 28. Buat pesanan valid -> 201, total_price = 2 malam x 300.000 = 600000, status pending
+# @name createBooking
+POST {{base}}/bookings
+Content-Type: application/json
+
+{
+  "room_id": 8,
+  "guest_name": "Tamu Uji Coba",
+  "guest_email": "Tamu.Uji@Example.com",
+  "guests_count": 2,
+  "check_in": "2027-01-10",
+  "check_out": "2027-01-12"
+}
+
+### 29. Ubah pesanan (PUT) -> 200, total_price dihitung ulang = 3 x 300.000 = 900000
+PUT {{base}}/bookings/{{createBooking.response.body.data.id}}
+Content-Type: application/json
+
+{
+  "room_id": 8,
+  "guest_name": "Tamu Uji Coba",
+  "guest_email": "tamu.uji@example.com",
+  "guests_count": 2,
+  "check_in": "2027-01-10",
+  "check_out": "2027-01-13"
+}
+
+### 30. Ubah status: pending -> confirmed -> 200
+PATCH {{base}}/bookings/{{createBooking.response.body.data.id}}/status
+Content-Type: application/json
+
+{ "status": "confirmed" }
+
+### 31. Status tidak sah: confirmed -> pending -> 409
+PATCH {{base}}/bookings/{{createBooking.response.body.data.id}}/status
+Content-Type: application/json
+
+{ "status": "pending" }
+
+### 32. Hapus pesanan -> 204
+DELETE {{base}}/bookings/{{createBooking.response.body.data.id}}
+
+### ---- Kasus gagal pesanan ----
+
+### 33. Tanggal bentrok (kamar 3 sudah confirmed 2026-11-01 s.d. 2026-11-04) -> 409
+POST {{base}}/bookings
+Content-Type: application/json
+
+{ "room_id": 3, "guest_name": "Tamu Bentrok", "guest_email": "bentrok@example.com", "guests_count": 2, "check_in": "2026-11-02", "check_out": "2026-11-05" }
+
+### 34. Check-in tepat di hari check-out tamu lain TIDAK bentrok -> 201
+POST {{base}}/bookings
+Content-Type: application/json
+
+{ "room_id": 3, "guest_name": "Tamu Sambung", "guest_email": "sambung@example.com", "guests_count": 2, "check_in": "2026-11-04", "check_out": "2026-11-05" }
+
+### 35. Tamu melebihi kapasitas (kamar 1 maks 2) -> 400
+POST {{base}}/bookings
+Content-Type: application/json
+
+{ "room_id": 1, "guest_name": "Tamu Ramai", "guest_email": "ramai@example.com", "guests_count": 5, "check_in": "2027-03-01", "check_out": "2027-03-03" }
+
+### 36. Klien mengirim total_price -> 400
+POST {{base}}/bookings
+Content-Type: application/json
+
+{ "room_id": 1, "guest_name": "Tamu Curang", "guest_email": "curang@example.com", "guests_count": 1, "check_in": "2027-03-01", "check_out": "2027-03-03", "total_price": 1 }
+
+### 37. Email salah + check_out sebelum check_in -> 400 (dua detail)
+POST {{base}}/bookings
+Content-Type: application/json
+
+{ "room_id": 1, "guest_name": "Tamu Salah", "guest_email": "bukan-email", "guests_count": 1, "check_in": "2027-03-05", "check_out": "2027-03-03" }
+
+### 38. Tanggal tidak ada di kalender -> 400
+POST {{base}}/bookings
+Content-Type: application/json
+
+{ "room_id": 1, "guest_name": "Tamu Salah", "guest_email": "salah@example.com", "guests_count": 1, "check_in": "2027-02-30", "check_out": "2027-03-03" }
+
+### 39. Kamar tidak ada -> 404
+POST {{base}}/bookings
+Content-Type: application/json
+
+{ "room_id": 999, "guest_name": "Tamu Hantu", "guest_email": "hantu@example.com", "guests_count": 1, "check_in": "2027-03-01", "check_out": "2027-03-03" }
+
+### 40. Pesanan tidak ada -> 404
+GET {{base}}/bookings/9999
+
+### 41. Status akhir tidak bisa diubah (pesanan 1 = completed) -> 409
+PATCH {{base}}/bookings/1/status
+Content-Type: application/json
+
+{ "status": "pending" }
+
+### 42. Status tidak dikenal -> 400
+PATCH {{base}}/bookings/3/status
+Content-Type: application/json
+
+{ "status": "selesai" }
+
+### 43. Edit pesanan yang sudah completed -> 409
+PUT {{base}}/bookings/1
+Content-Type: application/json
+
+{ "room_id": 1, "guest_name": "Budi Santoso", "guest_email": "budi.santoso@example.com", "guests_count": 2, "check_in": "2026-09-10", "check_out": "2026-09-12" }
+
+### 44. Nonaktifkan kamar lalu coba pesan -> 409
+# Langkah 1: PUT kamar 10 dengan is_active=false
+PUT {{base}}/rooms/10
+Content-Type: application/json
+
+{ "homestay_id": 5, "name": "Kamar Ekonomi", "type": "economy", "capacity": 2, "price_per_night": 150000, "is_active": false }
+
+###
+# Langkah 2: pesan kamar 10 -> 409
+POST {{base}}/bookings
+Content-Type: application/json
+
+{ "room_id": 10, "guest_name": "Tamu Nonaktif", "guest_email": "nonaktif@example.com", "guests_count": 1, "check_in": "2027-05-01", "check_out": "2027-05-02" }
+
+### ===================== AUTH (login & register) =====================
+# Akun seed: admin@mulakjabu.test / Admin12345 (admin), tamu@mulakjabu.test / Tamu12345 (guest)
+
+### A1. Daftar akun tamu -> 201 { data: { token, user } }
+POST {{base}}/auth/register
+Content-Type: application/json
+
+{ "name": "Tamu Baru", "email": "baru@example.com", "password": "rahasia123" }
+
+### A2. Login admin -> 200 (salin token ke variabel @token di bawah)
+# @name loginAdmin
+POST {{base}}/auth/login
+Content-Type: application/json
+
+{ "email": "admin@mulakjabu.test", "password": "Admin12345" }
+
+###
+@token = {{loginAdmin.response.body.data.token}}
+
+### A3. Profil sendiri -> 200
+GET {{base}}/auth/me
+Authorization: Bearer {{token}}
+
+### A4. Tanpa token -> 401
+GET {{base}}/bookings
+
+### A5. Dengan token -> 200
+GET {{base}}/bookings
+Authorization: Bearer {{token}}
+
+### A6. Tambah homestay tanpa login -> 401 (dengan token tamu -> 403, dengan token admin -> 201)
+POST {{base}}/homestays
+Content-Type: application/json
+
+{ "name": "Uji Auth", "address": "Jl. A", "city": "Medan" }
